@@ -47,7 +47,7 @@
   .empty-state{text-align:center;padding:30px 12px;color:var(--muted);font-size:13px;}
   .del-btn{background:none;border:none;font-size:16px;cursor:pointer;padding:4px;}
   .money-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:12px;border:1px solid var(--line);}
-  table.bc-grid{width:100%;border-collapse:collapse;table-layout:fixed;min-width:860px;font-size:13px;}
+  table.bc-grid{width:100%;border-collapse:collapse;table-layout:auto;min-width:860px;font-size:13px;}
   table.bc-grid th{background:var(--ink);color:#fff;padding:9px 6px;text-align:center;font-size:11px;font-weight:700;white-space:nowrap;}
   table.bc-grid td{border-bottom:1px solid var(--line);padding:7px 6px;text-align:center;background:#fff;}
   table.bc-grid td.left{text-align:left;}
@@ -64,11 +64,31 @@
   @media print{
     body *{visibility:hidden;}
     #printArea, #printArea *{visibility:visible;}
-    #printArea{display:block !important;position:absolute;top:0;left:0;width:100%;}
+    #printArea{display:block !important;position:absolute;top:0;left:0;width:100%;font-family:'Times New Roman', Times, serif !important;}
     #printArea .money-table-wrap{overflow:visible !important;}
-    #printArea table.bc-grid{min-width:0 !important;width:100% !important;}
-    @page{ size: A4; margin: 12mm; }
-  }
+    #printArea table.bc-grid{
+      table-layout:auto !important;
+      width:100% !important;
+      min-width:0 !important;
+      font-family:'Times New Roman', Times, serif !important;
+      font-size:11.5pt !important;
+      border-collapse:collapse !important;
+    }
+    #printArea table.bc-grid th, #printArea table.bc-grid td{
+      font-family:'Times New Roman', Times, serif !important;
+      padding:5pt 7pt !important;
+      border:0.7pt solid #444 !important;
+    }
+    #printArea table.bc-grid th{ font-size:10.5pt !important; }
+    #printArea table.bc-grid td.right{ white-space:nowrap !important; }
+    #printArea table.bc-grid tr{ break-inside: avoid; }
+    #printArea .font-display{ font-family:'Times New Roman', Times, serif !important; }
+    @page{ size: A4; margin: 14mm; }
+  }  .float-box{position:fixed;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(21,34,56,.22);z-index:998;overflow:hidden;max-height:280px;overflow-y:auto;}
+  .search-suggest-item{padding:11px 13px;font-size:14px;cursor:pointer;border-bottom:1px solid var(--line);}
+  .search-suggest-item:last-child{border-bottom:none;}
+  .search-suggest-item:active,.search-suggest-item:hover{background:#EAF1FB;}
+  .search-suggest-empty{padding:11px 13px;font-size:12.5px;color:var(--muted);}
 </style>
 </head>
 <body>
@@ -87,7 +107,7 @@
     <button class="tab-btn" id="tabBtnSettings" onclick="switchMainTab('settings')">⚙️ Cài Đặt</button>
   </div>
 </div>
-<div style="text-align:center;font-size:10px;color:var(--muted);opacity:.75;padding:3px 0;">Phiên bản: V1.3.0</div>
+<div style="text-align:center;font-size:10px;color:var(--muted);opacity:.75;padding:3px 0;">Phiên bản: V1.4.3</div>
 
 <div class="wrap" style="padding-top:16px;">
   <div class="font-display" style="font-size:24px;font-weight:700;">Báo Cáo Nguyên Liệu</div>
@@ -221,6 +241,7 @@
   </div>
 </div>
 
+<div id="searchSuggestBox" class="float-box hidden"></div>
 <div id="printArea" style="display:none;"></div>
 <div id="imgPreviewOverlay" class="hidden" style="position:fixed;inset:0;background:rgba(21,34,56,.9);z-index:997;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:16px;overflow:auto;">
   <img id="imgPreviewTag" style="max-width:94%;max-height:75vh;border-radius:10px;box-shadow:0 4px 20px rgba(0,0,0,.4);">
@@ -748,29 +769,111 @@ function updateEntryField(id, field, value){
   const r = entryRows.find(x=>x.id===id);
   if(r) r[field] = value;
 }
+function normalizeVN(s){
+  return (s||'').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d');
+}
+const SEARCH_SOURCES = {
+  kh: () => names.kh.map(n=>n.name),
+  dl: () => names.dl.map(n=>n.name),
+  lh: () => names.lh.map(n=>n.name),
+};
+let activeSearchInput = null;
+function positionFloatingBox(box, input){
+  const rect = input.getBoundingClientRect();
+  const spaceBelow = window.innerHeight - rect.bottom;
+  const openUp = spaceBelow < 220 && rect.top > 220;
+  box.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - rect.width - 8)) + 'px';
+  box.style.width = Math.max(rect.width, 200) + 'px';
+  if(openUp){ box.style.top = ''; box.style.bottom = (window.innerHeight - rect.top + 4) + 'px'; }
+  else{ box.style.bottom = ''; box.style.top = (rect.bottom + 4) + 'px'; }
+}
+function openSearchSuggest(input, sourceKey){
+  activeSearchInput = input;
+  renderSearchSuggest(input, sourceKey);
+}
+function renderSearchSuggest(input, sourceKey){
+  const box = document.getElementById('searchSuggestBox');
+  const provider = SEARCH_SOURCES[sourceKey];
+  if(!provider){ box.classList.add('hidden'); return; }
+  const all = [...new Set(provider())].filter(Boolean);
+  const q = normalizeVN(input.value);
+  const filtered = q ? all.filter(name => normalizeVN(name).includes(q)) : all;
+  box.innerHTML = filtered.length
+    ? filtered.map(name=>`<div class="search-suggest-item" data-value="${escapeHtml(name)}">${escapeHtml(name)}</div>`).join('')
+    : `<div class="search-suggest-empty">Không tìm thấy — gõ xong rời khỏi ô để tự thêm tên mới vào Danh mục</div>`;
+  positionFloatingBox(box, input);
+  box.classList.remove('hidden');
+  box.querySelectorAll('.search-suggest-item').forEach(item=>{
+    item.onmousedown = (e)=>{
+      e.preventDefault();
+      input.value = item.dataset.value;
+      input.dispatchEvent(new Event('input', {bubbles:true}));
+      input.dispatchEvent(new Event('change', {bubbles:true}));
+      closeSearchSuggest();
+    };
+  });
+}
+function closeSearchSuggest(){
+  const box = document.getElementById('searchSuggestBox');
+  if(box) box.classList.add('hidden');
+  activeSearchInput = null;
+}
+function autoAddNameIfMissing(kind, value){
+  const name = (value||'').trim();
+  if(!name) return;
+  if(!names[kind].some(n=>n.name===name)){
+    names[kind].push({ id: uid(), name });
+    saveJSON(NAMES_KEY, names);
+    if(mainTab==='names') renderNamesLists();
+  }
+}
+document.addEventListener('focusin', (e)=>{
+  const src = e.target && e.target.dataset ? e.target.dataset.src : null;
+  if(src && SEARCH_SOURCES[src]) openSearchSuggest(e.target, src);
+});
+document.addEventListener('input', (e)=>{
+  if(activeSearchInput===e.target && e.target.dataset.src) renderSearchSuggest(e.target, e.target.dataset.src);
+});
+document.addEventListener('focusout', (e)=>{
+  const src = e.target && e.target.dataset ? e.target.dataset.src : null;
+  if(src && SEARCH_SOURCES[src]) autoAddNameIfMissing(src, e.target.value);
+  setTimeout(()=>{ if(activeSearchInput===e.target) closeSearchSuggest(); }, 150);
+});
+window.addEventListener('scroll', ()=>{
+  if(activeSearchInput) positionFloatingBox(document.getElementById('searchSuggestBox'), activeSearchInput);
+}, true);
+window.addEventListener('resize', ()=>{ closeSearchSuggest(); });
+
 function renderEntryRows(){
   const wrap = document.getElementById('entryTbody');
   if(!wrap) return;
   if(entryRows.length===0) initEntryRows();
   wrap.innerHTML = entryRows.map(r=>`
     <tr>
-      <td><select onchange="updateEntryField('${r.id}','khachHang',this.value)">${nameOptions('kh', r.khachHang)}</select></td>
-      <td><select onchange="updateEntryField('${r.id}','daiLy',this.value)">${nameOptions('dl', r.daiLy)}</select></td>
-      <td><select onchange="updateEntryField('${r.id}','loaiHang',this.value)">${nameOptions('lh', r.loaiHang)}</select></td>
+      <td><input type="text" data-src="kh" value="${escapeHtml(r.khachHang)}" placeholder="Gõ để tìm/thêm…" oninput="updateEntryField('${r.id}','khachHang',this.value)"></td>
+      <td><input type="text" data-src="dl" value="${escapeHtml(r.daiLy)}" placeholder="Gõ để tìm/thêm…" oninput="updateEntryField('${r.id}','daiLy',this.value)"></td>
+      <td><input type="text" data-src="lh" value="${escapeHtml(r.loaiHang)}" placeholder="Gõ để tìm/thêm…" oninput="updateEntryField('${r.id}','loaiHang',this.value)"></td>
       <td><input type="text" value="${escapeHtml(r.size)}" oninput="updateEntryField('${r.id}','size',this.value)"></td>
       <td><input type="text" class="amt-input" value="${r.khoiLuong?formatNumber(r.khoiLuong):''}" placeholder="0" inputmode="decimal" oninput="handleWeightInput(event,'${r.id}')" onblur="forceReformatWeight(event)"></td>
       <td><button class="del-btn" onclick="removeEntryRow('${r.id}')" style="font-size:14px;">🗑</button></td>
     </tr>
   `).join('');
 }
+function parseWeightInput(str){
+  // Bàn phím số trên điện thoại (VN) hay hiện dấu "," làm dấu thập phân thay vì "."
+  let s = (str||'').replace(/[^\d.,]/g, '');
+  if(s.includes(',') && !s.includes('.')) s = s.replace(',', '.');
+  else s = s.replace(/,/g, '');
+  return s;
+}
 function handleWeightInput(e, rowId){
   const el = e.target;
-  const raw = el.value.replace(/[^\d.]/g,'');
+  const raw = parseWeightInput(el.value);
   updateEntryField(rowId, 'khoiLuong', raw ? Number(raw) : '');
 }
 function forceReformatWeight(e){
   const el = e.target;
-  const raw = el.value.replace(/[^\d.]/g,'');
+  const raw = parseWeightInput(el.value);
   el.value = raw ? formatNumber(raw) : '';
 }
 function saveReport(){
@@ -875,7 +978,7 @@ function renderHistory(){
             <input id="editRowSize-${r.id}" type="text" value="${escapeHtml(r.size)}" style="flex:1;">
           </div>
           <div class="row-flex" style="margin-top:6px;">
-            <input id="editRowKl-${r.id}" type="text" value="${formatNumber(r.khoiLuong)}" data-raw="${r.khoiLuong}" oninput="this.dataset.raw=this.value.replace(/[^\d.]/g,'')" style="flex:1;">
+            <input id="editRowKl-${r.id}" type="text" value="${formatNumber(r.khoiLuong)}" data-raw="${r.khoiLuong}" oninput="this.dataset.raw=parseWeightInput(this.value)" style="flex:1;">
             <input id="editRowNc-${r.id}" type="text" value="${escapeHtml(r.nguoiCan||'')}" placeholder="Thống Kê" style="flex:1;">
           </div>
           <div class="row-flex" style="margin-top:8px;">
@@ -985,11 +1088,34 @@ async function shareImgPreview(){
 }
 function printHist(){
   const el = document.getElementById('histCapture');
-  const printArea = document.getElementById('printArea');
-  if(!el || !printArea) return;
-  printArea.innerHTML = el.innerHTML;
-  printArea.querySelectorAll('.no-export').forEach(n=> n.style.display='none');
-  window.print();
+  if(!el) return;
+  const clone = el.cloneNode(true);
+  clone.querySelectorAll('.no-export').forEach(n=>n.remove());
+  const win = window.open('', '_blank');
+  if(!win){ alert('Trình duyệt đang chặn cửa sổ in — vui lòng cho phép popup cho trang này rồi thử lại.'); return; }
+  win.document.open();
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Báo Cáo Nguyên Liệu</title>
+    <style>
+      body{margin:0;padding:0;font-family:'Times New Roman', Times, serif;color:#1B2430;}
+      .print-content{padding:14mm;}
+      table.bc-grid{table-layout:auto;width:100%;border-collapse:collapse;font-size:11.5pt;}
+      table.bc-grid th, table.bc-grid td{font-family:'Times New Roman', Times, serif;padding:5pt 7pt;border:0.7pt solid #444;}
+      table.bc-grid th{background:#1B2430;color:#fff;font-size:10.5pt;}
+      table.bc-grid td.right{text-align:right;white-space:nowrap;}
+      table.bc-grid td.left{text-align:left;}
+      .font-display{font-family:'Times New Roman', Times, serif;font-size:19px;font-weight:700;text-align:center;}
+      #closePrintBtn{position:fixed;top:12px;right:12px;z-index:9;background:#1B2430;color:#fff;border:none;border-radius:8px;padding:10px 16px;font-size:14px;font-weight:700;cursor:pointer;font-family:sans-serif;}
+      @page{ size:A4; margin:14mm; }
+      @media print{ #closePrintBtn{ display:none !important; } }
+    </style>
+  </head><body>
+    <button id="closePrintBtn" onclick="window.close()">✕ Đóng</button>
+    <div class="print-content">${clone.innerHTML}</div>
+  </body></html>`);
+  win.document.close();
+  const doPrint = ()=>{ win.focus(); win.print(); };
+  win.onload = doPrint;
+  setTimeout(doPrint, 400);
 }
 
 // ===== INIT =====
