@@ -107,7 +107,7 @@
     <button class="tab-btn" id="tabBtnSettings" onclick="switchMainTab('settings')">⚙️ Cài Đặt</button>
   </div>
 </div>
-<div style="text-align:center;font-size:10px;color:var(--muted);opacity:.75;padding:3px 0;">Phiên bản: V1.4.6</div>
+<div style="text-align:center;font-size:10px;color:var(--muted);opacity:.75;padding:3px 0;">Phiên bản: V1.5.0</div>
 
 <div class="wrap" style="padding-top:16px;">
   <div class="font-display" style="font-size:24px;font-weight:700;">Báo Cáo Nguyên Liệu</div>
@@ -968,7 +968,7 @@ function renderHistory(){
     const rowspan = g.rows.length;
     return g.rows.map((r,ri)=>{
       if(editingRowId===r.id){
-        return `<tr><td colspan="9" style="text-align:left;padding:10px;background:#F7F8FA;">
+        return `<tr><td colspan="8" style="text-align:left;padding:10px;background:#F7F8FA;">
           <div class="row-flex">
             <select id="editRowKh-${r.id}" style="flex:1;">${nameOptions('kh', r.khachHang)}</select>
             <select id="editRowDl-${r.id}" style="flex:1;">${nameOptions('dl', r.daiLy)}</select>
@@ -991,13 +991,15 @@ function renderHistory(){
       return `
       <tr>
         ${isFirst ? `<td rowspan="${rowspan}" style="vertical-align:middle;">${stt}</td>` : ''}
-        ${isFirst ? `<td rowspan="${rowspan}" class="left" style="vertical-align:middle;font-weight:700;">${escapeHtml(g.khachHang)}</td>` : ''}
         <td class="left">${escapeHtml(r.daiLy)}</td>
         <td class="left">${escapeHtml(r.loaiHang)}</td>
         <td>${escapeHtml(r.size)}</td>
         <td class="right">${formatNumber(r.khoiLuong)}</td>
-        ${isFirst ? `<td rowspan="${rowspan}" style="vertical-align:middle;text-align:center;font-weight:800;font-size:15px;color:var(--rust);">${formatNumber(g.total)}</td>` : ''}
-        ${isFirst ? `<td rowspan="${rowspan}" class="left" style="vertical-align:middle;font-size:12px;color:var(--blue);">${escapeHtml(r.nguoiCan||'')}</td>` : ''}
+        ${isFirst ? `<td rowspan="${rowspan}" style="vertical-align:middle;text-align:center;font-weight:800;font-size:120px;line-height:1;color:var(--rust);">${formatNumber(g.total)}</td>` : ''}
+        ${isFirst ? `<td rowspan="${rowspan}" class="left" style="vertical-align:middle;">
+          <div style="font-size:120px;font-weight:800;line-height:1.05;">${escapeHtml(g.khachHang)}</div>
+          <div style="font-size:12px;color:var(--blue);margin-top:8px;">${escapeHtml(r.nguoiCan||'')}</div>
+        </td>` : ''}
         <td class="no-export" style="white-space:nowrap;"><button class="del-btn" onclick="editReportRow('${r.id}')">✏️</button><button class="del-btn" onclick="deleteReportRow('${r.id}')">🗑</button></td>
       </tr>`;
     }).join('');
@@ -1007,9 +1009,9 @@ function renderHistory(){
     ${subtitle ? `<div style="text-align:center;font-size:12.5px;color:var(--muted);margin-bottom:10px;">${subtitle}</div>` : '<div style="margin-bottom:10px;"></div>'}
     <div class="money-table-wrap">
       <table class="bc-grid">
-        <thead><tr><th style="width:5%;">Stt</th><th style="width:13%;">Khách hàng</th><th style="width:11%;">Đại Lý</th><th style="width:11%;">Loại hàng</th><th style="width:8%;">Size</th><th style="width:11%;">Khối lượng</th><th style="width:10%;">Tổng</th><th style="width:11%;">Thống Kê</th><th class="no-export" style="width:8%;"></th></tr></thead>
+        <thead><tr><th style="width:5%;">Stt</th><th style="width:14%;">Đại Lý</th><th style="width:14%;">Loại hàng</th><th style="width:9%;">Size</th><th style="width:13%;">Khối lượng</th><th style="width:15%;">Tổng</th><th style="width:22%;">Khách Hàng</th><th class="no-export" style="width:8%;"></th></tr></thead>
         <tbody>${bodyRows}
-          <tr class="sum-row"><td colspan="6" style="font-size:22px;">Tổng lượng</td><td class="right" style="font-size:30px;color:#2A5CAA;font-weight:900;">${formatNumber(grandTotal)}</td><td colspan="2"></td></tr>
+          <tr class="sum-row"><td colspan="5" style="font-size:22px;">Tổng lượng</td><td class="right" style="font-size:180px;line-height:1;color:#2A5CAA;font-weight:900;">${formatNumber(grandTotal)}</td><td colspan="2"></td></tr>
         </tbody>
       </table>
     </div>
