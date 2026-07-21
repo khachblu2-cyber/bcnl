@@ -107,7 +107,7 @@
     <button class="tab-btn" id="tabBtnSettings" onclick="switchMainTab('settings')">⚙️ Cài Đặt</button>
   </div>
 </div>
-<div style="text-align:center;font-size:10px;color:var(--muted);opacity:.75;padding:3px 0;">Phiên bản: V1.5.0</div>
+<div style="text-align:center;font-size:10px;color:var(--muted);opacity:.75;padding:3px 0;">Phiên bản: V1.5.1</div>
 
 <div class="wrap" style="padding-top:16px;">
   <div class="font-display" style="font-size:24px;font-weight:700;">Báo Cáo Nguyên Liệu</div>
@@ -995,10 +995,10 @@ function renderHistory(){
         <td class="left">${escapeHtml(r.loaiHang)}</td>
         <td>${escapeHtml(r.size)}</td>
         <td class="right">${formatNumber(r.khoiLuong)}</td>
-        ${isFirst ? `<td rowspan="${rowspan}" style="vertical-align:middle;text-align:center;font-weight:800;font-size:120px;line-height:1;color:var(--rust);">${formatNumber(g.total)}</td>` : ''}
+        ${isFirst ? `<td rowspan="${rowspan}" style="vertical-align:middle;text-align:center;font-weight:800;font-size:26px;color:var(--rust);">${formatNumber(g.total)}</td>` : ''}
         ${isFirst ? `<td rowspan="${rowspan}" class="left" style="vertical-align:middle;">
-          <div style="font-size:120px;font-weight:800;line-height:1.05;">${escapeHtml(g.khachHang)}</div>
-          <div style="font-size:12px;color:var(--blue);margin-top:8px;">${escapeHtml(r.nguoiCan||'')}</div>
+          <div style="font-size:24px;font-weight:800;">${escapeHtml(g.khachHang)}</div>
+          ${r.nguoiCan? `<div style="font-size:12px;color:var(--blue);margin-top:6px;">(TK: ${escapeHtml(r.nguoiCan)})</div>` : ''}
         </td>` : ''}
         <td class="no-export" style="white-space:nowrap;"><button class="del-btn" onclick="editReportRow('${r.id}')">✏️</button><button class="del-btn" onclick="deleteReportRow('${r.id}')">🗑</button></td>
       </tr>`;
@@ -1011,9 +1011,13 @@ function renderHistory(){
       <table class="bc-grid">
         <thead><tr><th style="width:5%;">Stt</th><th style="width:14%;">Đại Lý</th><th style="width:14%;">Loại hàng</th><th style="width:9%;">Size</th><th style="width:13%;">Khối lượng</th><th style="width:15%;">Tổng</th><th style="width:22%;">Khách Hàng</th><th class="no-export" style="width:8%;"></th></tr></thead>
         <tbody>${bodyRows}
-          <tr class="sum-row"><td colspan="5" style="font-size:22px;">Tổng lượng</td><td class="right" style="font-size:180px;line-height:1;color:#2A5CAA;font-weight:900;">${formatNumber(grandTotal)}</td><td colspan="2"></td></tr>
+          <tr class="sum-row"><td colspan="5" style="font-size:22px;">Tổng lượng</td><td class="right" style="font-size:26px;color:#2A5CAA;font-weight:900;">${formatNumber(grandTotal)}</td><td colspan="2"></td></tr>
         </tbody>
       </table>
+    </div>
+    <div style="background:var(--blue);color:#fff;border-radius:14px;padding:16px;text-align:center;margin-top:16px;">
+      <div style="font-size:12.5px;opacity:.85;font-weight:600;letter-spacing:.5px;text-transform:uppercase;">Tổng lượng hôm nay</div>
+      <div style="font-size:40px;font-weight:900;line-height:1.1;margin-top:4px;font-family:'IBM Plex Mono',monospace;">${formatNumber(grandTotal)} kg</div>
     </div>
   `;
 }
