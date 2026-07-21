@@ -52,7 +52,7 @@
   table.bc-grid td{border:1px solid #B7B2A6;padding:7px 6px;text-align:center;background:#fff;}
   table.bc-grid td.left{text-align:left;}
   table.bc-grid td.right{text-align:right;font-family:'IBM Plex Mono',monospace;}
-  .sum-row td{font-weight:800;background:#FFEB3B;}
+  .sum-row td{font-weight:800;background:#FFF6C9;padding-top:12px;padding-bottom:12px;}
   table.entry-grid{width:100%;border-collapse:collapse;table-layout:fixed;min-width:700px;font-size:13px;}
   table.entry-grid th{background:var(--ink);color:#fff;padding:8px 6px;text-align:center;font-size:11px;font-weight:700;white-space:nowrap;}
   table.entry-grid td{border-bottom:1px solid var(--line);padding:0;text-align:center;background:#fff;}
@@ -107,7 +107,7 @@
     <button class="tab-btn" id="tabBtnSettings" onclick="switchMainTab('settings')">⚙️ Cài Đặt</button>
   </div>
 </div>
-<div style="text-align:center;font-size:10px;color:var(--muted);opacity:.75;padding:3px 0;">Phiên bản: V1.4.5</div>
+<div style="text-align:center;font-size:10px;color:var(--muted);opacity:.75;padding:3px 0;">Phiên bản: V1.4.6</div>
 
 <div class="wrap" style="padding-top:16px;">
   <div class="font-display" style="font-size:24px;font-weight:700;">Báo Cáo Nguyên Liệu</div>
@@ -1009,7 +1009,7 @@ function renderHistory(){
       <table class="bc-grid">
         <thead><tr><th style="width:5%;">Stt</th><th style="width:13%;">Khách hàng</th><th style="width:11%;">Đại Lý</th><th style="width:11%;">Loại hàng</th><th style="width:8%;">Size</th><th style="width:11%;">Khối lượng</th><th style="width:10%;">Tổng</th><th style="width:11%;">Thống Kê</th><th class="no-export" style="width:8%;"></th></tr></thead>
         <tbody>${bodyRows}
-          <tr class="sum-row"><td colspan="6">Tổng lượng</td><td class="right" style="font-size:20px;color:#2A5CAA;font-weight:900;">${formatNumber(grandTotal)}</td><td colspan="2"></td></tr>
+          <tr class="sum-row"><td colspan="6" style="font-size:22px;">Tổng lượng</td><td class="right" style="font-size:30px;color:#2A5CAA;font-weight:900;">${formatNumber(grandTotal)}</td><td colspan="2"></td></tr>
         </tbody>
       </table>
     </div>
