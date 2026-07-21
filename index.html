@@ -107,7 +107,7 @@
     <button class="tab-btn" id="tabBtnSettings" onclick="switchMainTab('settings')">⚙️ Cài Đặt</button>
   </div>
 </div>
-<div style="text-align:center;font-size:10px;color:var(--muted);opacity:.75;padding:3px 0;">Phiên bản: V1.4.4</div>
+<div style="text-align:center;font-size:10px;color:var(--muted);opacity:.75;padding:3px 0;">Phiên bản: V1.4.5</div>
 
 <div class="wrap" style="padding-top:16px;">
   <div class="font-display" style="font-size:24px;font-weight:700;">Báo Cáo Nguyên Liệu</div>
@@ -1009,7 +1009,7 @@ function renderHistory(){
       <table class="bc-grid">
         <thead><tr><th style="width:5%;">Stt</th><th style="width:13%;">Khách hàng</th><th style="width:11%;">Đại Lý</th><th style="width:11%;">Loại hàng</th><th style="width:8%;">Size</th><th style="width:11%;">Khối lượng</th><th style="width:10%;">Tổng</th><th style="width:11%;">Thống Kê</th><th class="no-export" style="width:8%;"></th></tr></thead>
         <tbody>${bodyRows}
-          <tr class="sum-row"><td colspan="6">Tổng lượng</td><td class="right" style="font-size:17px;color:#C9472E;">${formatNumber(grandTotal)}</td><td colspan="2" class="no-export"></td></tr>
+          <tr class="sum-row"><td colspan="6">Tổng lượng</td><td class="right" style="font-size:20px;color:#2A5CAA;font-weight:900;">${formatNumber(grandTotal)}</td><td colspan="2"></td></tr>
         </tbody>
       </table>
     </div>
