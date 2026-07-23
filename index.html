@@ -131,7 +131,7 @@
     <button class="tab-btn" id="tabBtnSettings" onclick="switchMainTab('settings')">⚙️ Cài Đặt</button>
   </div>
 </div>
-<div style="text-align:center;font-size:10px;color:var(--muted);opacity:.75;padding:3px 0;">Phiên bản: V1.6.8</div>
+<div style="text-align:center;font-size:10px;color:var(--muted);opacity:.75;padding:3px 0;">Phiên bản: V1.6.9</div>
 
 <div class="wrap" style="padding-top:16px;">
   <div class="font-display" style="font-size:24px;font-weight:700;">Báo Cáo Nguyên Liệu</div>
@@ -594,6 +594,14 @@ function setNamesSub(s){
   document.getElementById('ncDlWrap').classList.toggle('hidden', s!=='dl');
   document.getElementById('ncLhWrap').classList.toggle('hidden', s!=='lh');
 }
+function toggleKhHidden(id){
+  const n = names.kh.find(x=>x.id===id);
+  if(!n) return;
+  n.hidden = !n.hidden;
+  saveJSON(NAMES_KEY, names);
+  renderNamesLists();
+  renderHistory();
+}
 function addName(kind){
   const inputId = kind==='kh' ? 'newKhName' : kind==='dl' ? 'newDlName' : 'newLhName';
   const input = document.getElementById(inputId);
@@ -646,7 +654,12 @@ function renderNameList(kind, wrapId){
     }
     return `
       <div class="card" style="margin-top:8px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;">
-        <div style="font-size:14px;font-weight:500;">${escapeHtml(n.name)}</div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          ${kind==='kh' ? `<label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);cursor:pointer;white-space:nowrap;">
+            <input type="checkbox" ${n.hidden?'checked':''} onchange="toggleKhHidden('${n.id}')" style="width:15px;height:15px;"> Ẩn
+          </label>` : ''}
+          <div style="font-size:14px;font-weight:500;${n.hidden?'color:var(--muted);text-decoration:line-through;':''}">${escapeHtml(n.name)}</div>
+        </div>
         <div style="display:flex;gap:10px;">
           <button class="del-btn" onclick="editName('${kind}','${n.id}')">✏️</button>
           <button class="del-btn" onclick="deleteName('${kind}','${n.id}')">🗑</button>
@@ -997,7 +1010,8 @@ function setQuickFilter(mode){
 function getFilteredReports(){
   const from = document.getElementById('histFrom')?.value;
   const to = document.getElementById('histTo')?.value;
-  return reports.filter(r=> (!from||r.date>=from) && (!to||r.date<=to)).slice().sort((a,b)=> a.date===b.date ? (a.createdAt||0)-(b.createdAt||0) : a.date.localeCompare(b.date));
+  const hiddenKh = new Set(names.kh.filter(n=>n.hidden).map(n=>n.name));
+  return reports.filter(r=> (!from||r.date>=from) && (!to||r.date<=to) && !hiddenKh.has(r.khachHang)).slice().sort((a,b)=> a.date===b.date ? (a.createdAt||0)-(b.createdAt||0) : a.date.localeCompare(b.date));
 }
 function groupReportsByCustomer(list){
   const groups = [];
