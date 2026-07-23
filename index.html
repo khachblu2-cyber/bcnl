@@ -55,6 +55,7 @@
   table.bc-grid tr.grp-b td{background:#DCE8FA;}
   table.bc-grid tr.grp-last td{border-bottom:2px solid var(--ink);}
   table.bc-grid td.size-cell{border-top:none;border-bottom:none;}
+  table.bc-grid td.khoiluong-cell{border-top:none;border-bottom:none;}
   table.bc-grid tbody.bc-group{break-inside:avoid;page-break-inside:avoid;}
   .sum-row td{font-weight:800;background:#FFF6C9;padding-top:12px;padding-bottom:12px;}
   table.entry-grid{width:100%;border-collapse:collapse;table-layout:fixed;min-width:700px;font-size:13px;}
@@ -130,7 +131,7 @@
     <button class="tab-btn" id="tabBtnSettings" onclick="switchMainTab('settings')">⚙️ Cài Đặt</button>
   </div>
 </div>
-<div style="text-align:center;font-size:10px;color:var(--muted);opacity:.75;padding:3px 0;">Phiên bản: V1.6.7</div>
+<div style="text-align:center;font-size:10px;color:var(--muted);opacity:.75;padding:3px 0;">Phiên bản: V1.6.8</div>
 
 <div class="wrap" style="padding-top:16px;">
   <div class="font-display" style="font-size:24px;font-weight:700;">Báo Cáo Nguyên Liệu</div>
@@ -1227,7 +1228,7 @@ function renderHistory(){
         <td class="left">${escapeHtml(r.daiLy)}</td>
         <td class="left">${escapeHtml(r.loaiHang)}</td>
         <td class="size-cell" style="font-size:23px;font-weight:700;">${escapeHtml(r.size)}</td>
-        <td class="right" style="font-size:21px;font-weight:800;">${formatNumber(r.khoiLuong)}</td>
+        <td class="right khoiluong-cell" style="font-size:21px;font-weight:800;">${formatNumber(r.khoiLuong)}</td>
         ${isFirst ? `<td rowspan="${rowspan}" style="vertical-align:middle;text-align:center;font-weight:800;font-size:28px;color:var(--rust);">${formatNumber(g.total)}</td>` : ''}
         ${isFirst ? `<td rowspan="${rowspan}" class="left" style="vertical-align:middle;">
           <div style="font-size:24px;font-weight:800;">${escapeHtml(g.khachHang)}</div>
@@ -1343,6 +1344,7 @@ function printHist(){
       table.bc-grid th, table.bc-grid td{font-family:'Times New Roman', Times, serif;padding:5pt 7pt;border:0.7pt solid #444;}
       table.bc-grid th{background:#1B2430;color:#fff;font-size:10.5pt;}
       table.bc-grid td.size-cell{border-top:none;border-bottom:none;}
+      table.bc-grid td.khoiluong-cell{border-top:none;border-bottom:none;}
       table.bc-grid tr.grp-last td{border-bottom:1.4pt solid #1B2430;}
       table.bc-grid thead{display:table-header-group;}
       table.bc-grid tbody.bc-group{break-inside:avoid;page-break-inside:avoid;}
