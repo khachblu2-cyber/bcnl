@@ -131,7 +131,7 @@
     <button class="tab-btn" id="tabBtnSettings" onclick="switchMainTab('settings')">⚙️ Cài Đặt</button>
   </div>
 </div>
-<div style="text-align:center;font-size:10px;color:var(--muted);opacity:.75;padding:3px 0;">Phiên bản: V1.7.0</div>
+<div style="text-align:center;font-size:10px;color:var(--muted);opacity:.75;padding:3px 0;">Phiên bản: V1.7.1</div>
 
 <div class="wrap" style="padding-top:16px;">
   <div class="font-display" style="font-size:24px;font-weight:700;">Báo Cáo Nguyên Liệu</div>
@@ -242,6 +242,12 @@
 
   <!-- ================= DANH MỤC ================= -->
   <div id="namesSection" class="hidden">
+    <div class="card" style="margin-bottom:12px;">
+      <div class="row-flex" style="align-items:center;justify-content:space-between;">
+        <div class="small" style="color:var(--muted);">Gộp các tên bị trùng do gõ khác hoa/thường (VD: "Sa Bố" và "SA BỐ") thành 1 tên duy nhất, tự cập nhật lại báo cáo cũ.</div>
+        <button class="btn btn-outline btn-sm" onclick="mergeDuplicateNames()" style="white-space:nowrap;">🧹 Hợp nhất trùng lặp</button>
+      </div>
+    </div>
     <div class="section-tab">
       <button class="active" id="ncSubKH" onclick="setNamesSub('kh')">🧑‍💼 Khách hàng</button>
       <button id="ncSubDL" onclick="setNamesSub('dl')">🚚 Đại lý</button>
@@ -374,6 +380,7 @@ function dateKeyOffset(daysAgo){
 
 let reports = loadJSON(REPORT_KEY, []); // dòng phẳng: {id, date, khachHang, daiLy, loaiHang, size, khoiLuong, nguoiCan, createdAt}
 let names = loadJSON(NAMES_KEY, { kh:[], dl:[], lh:[], nc:[] });
+function normName(s){ return (s||'').trim().toLowerCase().replace(/\s+/g,' '); }
 const USERS_KEY = "bcnl-users-v1";
 const CURRENT_USER_KEY = "bcnl-current-user";
 let users = loadJSON(USERS_KEY, []); // [{id, username, password, displayName}]
@@ -605,12 +612,50 @@ function toggleKhHidden(id){
   renderNamesLists();
   renderHistory();
 }
+function mergeDuplicateNames(){
+  const kinds = ['kh','dl','lh','nc'];
+  const fieldOf = {kh:'khachHang', dl:'daiLy', lh:'loaiHang', nc:'nguoiCan'};
+  let totalMerged = 0;
+  const details = [];
+  kinds.forEach(kind=>{
+    const groups = {};
+    names[kind].forEach(n=>{
+      const key = normName(n.name);
+      (groups[key] = groups[key]||[]).push(n);
+    });
+    Object.values(groups).forEach(group=>{
+      if(group.length<2) return;
+      const field = fieldOf[kind];
+      // chọn tên chuẩn = tên đang được dùng nhiều nhất trong báo cáo (ít phải sửa lại nhất)
+      let canonical = group[0], maxCount = -1;
+      group.forEach(n=>{
+        const count = reports.filter(r=>r[field]===n.name).length;
+        if(count>maxCount){ maxCount = count; canonical = n; }
+      });
+      const others = group.filter(n=>n.id!==canonical.id);
+      others.forEach(n=>{
+        reports.forEach(r=>{ if(r[field]===n.name) r[field] = canonical.name; });
+      });
+      names[kind] = names[kind].filter(n=> n.id===canonical.id || !others.some(o=>o.id===n.id));
+      totalMerged += others.length;
+      details.push(`• "${canonical.name}" ← gộp: ${others.map(o=>`"${o.name}"`).join(', ')}`);
+    });
+  });
+  if(totalMerged===0){ alert("Không tìm thấy tên nào bị trùng (không phân biệt hoa/thường) trong Khách hàng, Đại lý, Loại hàng, Người cân."); return; }
+  saveJSON(NAMES_KEY, names);
+  saveJSON(REPORT_KEY, reports);
+  renderNamesLists();
+  renderEntryRows();
+  if(mainTab==='history') renderHistory();
+  alert(`Đã hợp nhất ${totalMerged} tên trùng lặp, toàn bộ báo cáo liên quan đã được cập nhật:\n\n`+details.join('\n'));
+}
 function addName(kind){
   const inputId = kind==='kh' ? 'newKhName' : kind==='dl' ? 'newDlName' : 'newLhName';
   const input = document.getElementById(inputId);
   const name = input.value.trim();
   if(!name) return;
-  if(names[kind].some(n=>n.name===name)){ alert("Tên này đã có trong danh sách rồi"); return; }
+  const dup = names[kind].find(n=>normName(n.name)===normName(name));
+  if(dup){ alert(`Tên này đã có trong danh sách rồi (dạng đã lưu: "${dup.name}")`); return; }
   names[kind].push({ id: uid(), name });
   saveJSON(NAMES_KEY, names);
   input.value = '';
@@ -625,6 +670,8 @@ function saveEditName(kind, id){
   if(!n) return;
   const val = document.getElementById('editName-'+kind+'-'+id).value.trim();
   if(!val) return;
+  const dup = names[kind].find(x=>x.id!==id && normName(x.name)===normName(val));
+  if(dup){ alert(`Tên này đã trùng với mục đang có ("${dup.name}") — dùng "🧹 Hợp nhất trùng lặp" nếu muốn gộp chung`); return; }
   n.name = val;
   editingNameId = null;
   saveJSON(NAMES_KEY, names);
@@ -924,7 +971,7 @@ function closeSearchSuggest(){
 function autoAddNameIfMissing(kind, value){
   const name = (value||'').trim();
   if(!name) return;
-  if(!names[kind].some(n=>n.name===name)){
+  if(!names[kind].some(n=>normName(n.name)===normName(name))){
     names[kind].push({ id: uid(), name });
     saveJSON(NAMES_KEY, names);
     if(mainTab==='names') renderNamesLists();
