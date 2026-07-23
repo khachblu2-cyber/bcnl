@@ -130,7 +130,7 @@
     <button class="tab-btn" id="tabBtnSettings" onclick="switchMainTab('settings')">⚙️ Cài Đặt</button>
   </div>
 </div>
-<div style="text-align:center;font-size:10px;color:var(--muted);opacity:.75;padding:3px 0;">Phiên bản: V1.6.6</div>
+<div style="text-align:center;font-size:10px;color:var(--muted);opacity:.75;padding:3px 0;">Phiên bản: V1.6.7</div>
 
 <div class="wrap" style="padding-top:16px;">
   <div class="font-display" style="font-size:24px;font-weight:700;">Báo Cáo Nguyên Liệu</div>
@@ -1009,7 +1009,17 @@ function groupReportsByCustomer(list){
     }
     groups[idxMap[key]].rows.push(r);
   });
-  return groups.map(g=>({ ...g, total: g.rows.reduce((s,r)=>s+r.khoiLuong,0) })).sort((a,b)=>a.total-b.total);
+  groups.forEach(g=>{
+    g.rows.sort((a,b)=>{
+      const na = parseFloat(String(a.size).replace(',','.'));
+      const nb = parseFloat(String(b.size).replace(',','.'));
+      if(!isNaN(na) && !isNaN(nb) && na!==nb) return na-nb;
+      if(!isNaN(na) && isNaN(nb)) return -1;
+      if(isNaN(na) && !isNaN(nb)) return 1;
+      return String(a.size).localeCompare(String(b.size));
+    });
+  });
+  return groups.map(g=>({ ...g, total: g.rows.reduce((s,r)=>s+r.khoiLuong,0) }));
 }
 // ===== TỔNG HỢP (lọc + bảng + biểu đồ) =====
 let sumQuickFilterMode = 'thang';
