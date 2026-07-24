@@ -131,7 +131,7 @@
     <button class="tab-btn" id="tabBtnSettings" onclick="switchMainTab('settings')">⚙️ Cài Đặt</button>
   </div>
 </div>
-<div style="text-align:center;font-size:10px;color:var(--muted);opacity:.75;padding:3px 0;">Phiên bản: V1.7.1</div>
+<div style="text-align:center;font-size:10px;color:var(--muted);opacity:.75;padding:3px 0;">Phiên bản: V1.7.2</div>
 
 <div class="wrap" style="padding-top:16px;">
   <div class="font-display" style="font-size:24px;font-weight:700;">Báo Cáo Nguyên Liệu</div>
@@ -496,6 +496,21 @@ async function cloudInit(){
   }
   hideLoadingOverlay();
 }
+// Đẩy ngay lập tức lên Firebase nếu đang có thay đổi chờ đồng bộ (tránh mất dữ liệu khi tắt app/chuyển tab giữa chừng)
+function flushCloudSyncNow(){
+  if(!fsReady || !fsDb) return;
+  if(cloudSyncTimer){
+    clearTimeout(cloudSyncTimer);
+    cloudSyncTimer = null;
+    syncNowCloud();
+  }
+}
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState === 'hidden') flushCloudSyncNow();
+});
+window.addEventListener('pagehide', flushCloudSyncNow);
+window.addEventListener('blur', flushCloudSyncNow);
+
 function attachRealtimeListeners(){
   firestoreListeners.forEach(u=>u());
   firestoreListeners = [];
@@ -609,6 +624,7 @@ function toggleKhHidden(id){
   if(!n) return;
   n.hidden = !n.hidden;
   saveJSON(NAMES_KEY, names);
+  flushCloudSyncNow();
   renderNamesLists();
   renderHistory();
 }
@@ -644,6 +660,7 @@ function mergeDuplicateNames(){
   if(totalMerged===0){ alert("Không tìm thấy tên nào bị trùng (không phân biệt hoa/thường) trong Khách hàng, Đại lý, Loại hàng, Người cân."); return; }
   saveJSON(NAMES_KEY, names);
   saveJSON(REPORT_KEY, reports);
+  flushCloudSyncNow();
   renderNamesLists();
   renderEntryRows();
   if(mainTab==='history') renderHistory();
@@ -658,6 +675,7 @@ function addName(kind){
   if(dup){ alert(`Tên này đã có trong danh sách rồi (dạng đã lưu: "${dup.name}")`); return; }
   names[kind].push({ id: uid(), name });
   saveJSON(NAMES_KEY, names);
+  flushCloudSyncNow();
   input.value = '';
   renderNamesLists();
   renderEntryRows();
@@ -675,6 +693,7 @@ function saveEditName(kind, id){
   n.name = val;
   editingNameId = null;
   saveJSON(NAMES_KEY, names);
+  flushCloudSyncNow();
   renderNamesLists();
   renderEntryRows();
 }
@@ -682,6 +701,7 @@ function deleteName(kind, id){
   if(!confirm("Xoá mục này khỏi danh mục?")) return;
   names[kind] = names[kind].filter(n=>n.id!==id);
   saveJSON(NAMES_KEY, names);
+  flushCloudSyncNow();
   renderNamesLists();
   renderEntryRows();
 }
