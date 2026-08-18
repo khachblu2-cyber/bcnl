@@ -131,7 +131,7 @@
     <button class="tab-btn" id="tabBtnSettings" onclick="switchMainTab('settings')">⚙️ Cài Đặt</button>
   </div>
 </div>
-<div style="text-align:center;font-size:10px;color:var(--muted);opacity:.75;padding:3px 0;">Phiên bản: V1.7.3</div>
+<div style="text-align:center;font-size:10px;color:var(--muted);opacity:.75;padding:3px 0;">Phiên bản: V1.7.4</div>
 
 <div class="wrap" style="padding-top:16px;">
   <div class="font-display" style="font-size:24px;font-weight:700;">Báo Cáo Nguyên Liệu</div>
@@ -1321,7 +1321,6 @@ function renderHistory(){
         ${isFirst ? `<td rowspan="${rowspan}" style="vertical-align:middle;text-align:center;font-weight:800;font-size:28px;color:var(--rust);">${formatNumber(g.total)}</td>` : ''}
         ${isFirst ? `<td rowspan="${rowspan}" class="left" style="vertical-align:middle;">
           <div style="font-size:24px;font-weight:800;">${escapeHtml(g.khachHang)}${isKhHidden(g.khachHang)? ' <span style="font-size:11px;font-weight:700;color:#fff;background:var(--muted);border-radius:8px;padding:2px 7px;vertical-align:middle;">Đang ẩn</span>':''}</div>
-          ${r.nguoiCan? `<div style="font-size:12px;color:var(--blue);margin-top:6px;">(TK: ${escapeHtml(r.nguoiCan)})</div>` : ''}
         </td>` : ''}
         <td class="no-export" style="white-space:nowrap;"><button class="del-btn" onclick="editReportRow('${r.id}')">✏️</button><button class="del-btn" onclick="deleteReportRow('${r.id}')">🗑</button></td>
       </tr>`;
