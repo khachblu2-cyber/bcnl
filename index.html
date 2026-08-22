@@ -13,6 +13,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js" defer></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js" defer></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js" defer></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-storage-compat.js" defer></script>
 <style>
   :root{ --ink:#1B2430; --paper:#FAF8F4; --line:#E4E1D8; --muted:#8A93A3; --rust:#C9472E; --moss:#3F7A5C; --blue:#2A5CAA; }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
@@ -112,6 +113,17 @@
   .pie-legend{flex:1;min-width:150px;}
   .pie-legend-item{display:flex;align-items:center;gap:7px;font-size:12px;margin-top:6px;}
   .pie-dot{width:10px;height:10px;border-radius:3px;flex-shrink:0;}
+  /* ===== Ảnh lô hàng (V1.7.5) ===== */
+  .cam-btn{background:#EAF1FB;color:var(--blue);border:1px solid #C3D6F0;border-radius:8px;padding:5px 9px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;}
+  .cam-btn.has{background:var(--blue);color:#fff;border-color:var(--blue);}
+  .cam-btn.empty{background:#F4F5F7;color:#B6BCC7;border-color:var(--line);}
+  .anh-overlay{position:fixed;inset:0;background:rgba(21,34,56,.55);z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px;}
+  .anh-modal{background:#fff;border-radius:16px;padding:16px;width:100%;max-width:460px;max-height:88vh;overflow-y:auto;box-shadow:0 12px 34px rgba(21,34,56,.28);}
+  .anh-thumb-wrap{position:relative;display:inline-block;margin:0 8px 8px 0;}
+  .anh-thumb{width:86px;height:86px;object-fit:cover;border-radius:10px;border:1px solid var(--line);cursor:pointer;display:block;}
+  .anh-del{position:absolute;top:-6px;right:-6px;background:var(--rust);color:#fff;border:none;border-radius:50%;width:22px;height:22px;font-size:13px;font-weight:700;line-height:1;cursor:pointer;padding:0;}
+  .anh-view-overlay{position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:1001;display:flex;align-items:center;justify-content:center;padding:10px;}
+  .anh-view-overlay img{max-width:100%;max-height:92vh;object-fit:contain;border-radius:8px;}
 </style>
 </head>
 <body>
@@ -131,7 +143,7 @@
     <button class="tab-btn" id="tabBtnSettings" onclick="switchMainTab('settings')">⚙️ Cài Đặt</button>
   </div>
 </div>
-<div style="text-align:center;font-size:10px;color:var(--muted);opacity:.75;padding:3px 0;">Phiên bản: V1.7.4</div>
+<div style="text-align:center;font-size:10px;color:var(--muted);opacity:.75;padding:3px 0;">Phiên bản: V1.7.5</div>
 
 <div class="wrap" style="padding-top:16px;">
   <div class="font-display" style="font-size:24px;font-weight:700;">Báo Cáo Nguyên Liệu</div>
@@ -149,13 +161,13 @@
       <div class="card-title">Nhập giao dịch</div>
       <div class="money-table-wrap">
         <table class="entry-grid">
-          <thead><tr><th style="width:24%;">Khách hàng</th><th style="width:20%;">Đại Lý</th><th style="width:20%;">Loại hàng</th><th style="width:14%;">Size</th><th style="width:16%;">Khối lượng</th><th style="width:24px;"></th></tr></thead>
+          <thead><tr><th style="width:21%;">Khách hàng</th><th style="width:18%;">Đại Lý</th><th style="width:18%;">Loại hàng</th><th style="width:12%;">Size</th><th style="width:15%;">Khối lượng</th><th style="width:12%;">Ảnh</th><th style="width:24px;"></th></tr></thead>
           <tbody id="entryTbody"></tbody>
         </table>
       </div>
       <button class="btn btn-outline btn-block" style="margin-top:10px;" onclick="addEntryRow()">➕ Thêm dòng</button>
     </div>
-    <button class="btn btn-primary btn-block" style="margin-top:10px;" onclick="saveReport()">💾 Lưu</button>
+    <button class="btn btn-primary btn-block" id="btnLuuReport" style="margin-top:10px;" onclick="saveReport()">💾 Lưu</button>
   </div>
 
   <!-- ================= BÁO CÁO ================= -->
@@ -388,6 +400,7 @@ let currentUser = loadJSON(CURRENT_USER_KEY, null); // {username, displayName}
 
 // ===== ĐỒNG BỘ FIREBASE =====
 let fsDb = null;
+let fsStorage = null;
 let fsReady = false;
 let firestoreListeners = [];
 let cloudSyncTimer = null;
@@ -457,6 +470,7 @@ async function cloudInit(){
     firebase.initializeApp(window.firebaseConfig);
     await firebase.auth().signInAnonymously();
     fsDb = firebase.firestore();
+    try{ fsStorage = firebase.storage(); }catch(e){ fsStorage = null; console.warn("Chưa bật Firebase Storage", e); }
 
     const qs = await fsDb.collection("bcnlReports2").get();
     let cloudReports = qs.docs.map(d=>d.data());
@@ -927,7 +941,7 @@ function applyUserPermissions(){
 
 // ===== NHẬP LIỆU (bảng phẳng, 3 dòng sẵn) =====
 let entryRows = [];
-function emptyEntryRow(){ return { id: uid(), khachHang:'', daiLy:'', loaiHang:'', size:'', khoiLuong:'' }; }
+function emptyEntryRow(){ return { id: uid(), khachHang:'', daiLy:'', loaiHang:'', size:'', khoiLuong:'', anhs:[] }; }
 function initEntryRows(){ entryRows = [emptyEntryRow(), emptyEntryRow(), emptyEntryRow()]; }
 function addEntryRow(){ entryRows.push(emptyEntryRow()); renderEntryRows(); }
 function removeEntryRow(id){
@@ -1014,6 +1028,219 @@ window.addEventListener('scroll', ()=>{
 }, true);
 window.addEventListener('resize', ()=>{ closeSearchSuggest(); });
 
+// ===================== ẢNH LÔ HÀNG (V1.7.5) =====================
+const ANH_TOI_DA = 5;        // tối đa 5 tấm / dòng cân
+const ANH_MAX_PX = 1024;     // cạnh dài nhất sau khi nén
+const ANH_CHAT_LUONG = 0.7;  // chất lượng JPEG
+
+// Nút 📷 dùng chung cho bảng Nhập liệu và bảng Báo Cáo
+function camBtnHtml(soAnh, onclickJs){
+  const cls = soAnh>0 ? 'cam-btn has' : 'cam-btn empty';
+  const nhan = soAnh>0 ? `📷 ${soAnh}` : '📷';
+  return `<button class="${cls}" onclick="${onclickJs}">${nhan}</button>`;
+}
+
+// Nén ảnh phía máy trước khi tải lên -> trả về chuỗi dataURL
+function nenAnh(file){
+  return new Promise((resolve, reject)=>{
+    const fr = new FileReader();
+    fr.onerror = ()=> reject(new Error("Không đọc được ảnh"));
+    fr.onload = ()=>{
+      const im = new Image();
+      im.onerror = ()=> reject(new Error("Ảnh không hợp lệ"));
+      im.onload = ()=>{
+        let w = im.width, h = im.height;
+        const tyLe = Math.min(1, ANH_MAX_PX / Math.max(w, h));
+        w = Math.round(w * tyLe); h = Math.round(h * tyLe);
+        const cv = document.createElement('canvas');
+        cv.width = w; cv.height = h;
+        const ctx = cv.getContext('2d');
+        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(im, 0, 0, w, h);
+        resolve(cv.toDataURL('image/jpeg', ANH_CHAT_LUONG));
+      };
+      im.src = fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+
+function anhSrc(a){ return typeof a === 'string' ? a : (a && a.url) || ''; }
+function uocLuongDungLuong(list){
+  // dataURL: base64 nở ~4/3 so với dung lượng thật
+  let bytes = 0;
+  list.forEach(a=>{ if(typeof a === 'string') bytes += a.length * 0.75; else bytes += (a.size || 120*1024); });
+  return bytes;
+}
+function dinhDangDungLuong(bytes){
+  if(bytes < 1024*1024) return Math.round(bytes/1024) + ' KB';
+  return (bytes/1024/1024).toFixed(2).replace('.', ',') + ' MB';
+}
+
+// Tải 1 ảnh dataURL lên Firebase Storage -> trả {url, path, size}
+async function taiAnhLen(dataUrl, recId, ngay, thuTu){
+  if(!fsStorage) throw new Error("Chưa bật Firebase Storage");
+  const path = `bcnl/${ngay}/${recId}/${thuTu}-${Date.now().toString(36)}.jpg`;
+  const ref = fsStorage.ref(path);
+  await ref.putString(dataUrl, 'data_url', { contentType: 'image/jpeg' });
+  const url = await ref.getDownloadURL();
+  return { url, path, size: Math.round(dataUrl.length * 0.75) };
+}
+// Xoá ảnh trên Storage (bỏ qua lỗi nếu ảnh đã không còn)
+async function xoaAnhStorage(path){
+  if(!fsStorage || !path) return;
+  try{ await fsStorage.ref(path).delete(); }
+  catch(e){ console.warn("Không xoá được ảnh trên Storage:", path, e); }
+}
+async function xoaAnhCuaDong(rec){
+  const list = (rec && rec.anhs) || [];
+  for(const a of list){ if(a && a.path) await xoaAnhStorage(a.path); }
+}
+
+// ---------- Cửa sổ ảnh ----------
+let anhCtx = null; // {loai:'entry'|'report', id}
+
+function layDanhSachAnh(){
+  if(!anhCtx) return [];
+  if(anhCtx.loai === 'entry'){
+    const r = entryRows.find(x=>x.id===anhCtx.id);
+    return r ? (r.anhs || (r.anhs = [])) : [];
+  }
+  const r = reports.find(x=>x.id===anhCtx.id);
+  return r ? (r.anhs || (r.anhs = [])) : [];
+}
+function layMoTaDong(){
+  if(!anhCtx) return '';
+  const r = anhCtx.loai === 'entry'
+    ? entryRows.find(x=>x.id===anhCtx.id)
+    : reports.find(x=>x.id===anhCtx.id);
+  if(!r) return '';
+  const phan = [r.khachHang, r.daiLy, r.loaiHang, r.size ? ('Size ' + r.size) : ''].filter(Boolean);
+  if(Number(r.khoiLuong) > 0) phan.push(formatNumber(r.khoiLuong) + ' kg');
+  return phan.join(' · ');
+}
+
+function moAnhEntry(rowId){ anhCtx = { loai:'entry', id:rowId }; veCuaSoAnh(); }
+function moAnhReport(recId){ anhCtx = { loai:'report', id:recId }; veCuaSoAnh(); }
+
+function veCuaSoAnh(){
+  let ov = document.getElementById('anhOverlay');
+  if(!ov){
+    ov = document.createElement('div');
+    ov.id = 'anhOverlay';
+    ov.className = 'anh-overlay';
+    ov.onclick = (e)=>{ if(e.target === ov) dongCuaSoAnh(); };
+    document.body.appendChild(ov);
+  }
+  const list = layDanhSachAnh();
+  const moTa = layMoTaDong();
+  const con = ANH_TOI_DA - list.length;
+  const thumbs = list.map((a, i)=>`
+    <div class="anh-thumb-wrap">
+      <img class="anh-thumb" src="${anhSrc(a)}" onclick="xemAnhLon(${i})">
+      <button class="anh-del" onclick="xoaAnhTrongCuaSo(${i})">×</button>
+    </div>`).join('');
+  const chuaCoAnh = `<div class="empty-state" style="padding:18px 10px;">Chưa có ảnh nào</div>`;
+  ov.innerHTML = `
+    <div class="anh-modal" onclick="event.stopPropagation()">
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div style="font-size:17px;font-weight:800;">Ảnh lô hàng</div>
+        <button class="del-btn" style="font-size:20px;color:var(--muted);" onclick="dongCuaSoAnh()">✕</button>
+      </div>
+      ${moTa ? `<div style="font-size:12.5px;color:var(--muted);margin-bottom:12px;">${escapeHtml(moTa)}</div>` : '<div style="margin-bottom:12px;"></div>'}
+      <div id="anhDsWrap">${list.length ? thumbs : chuaCoAnh}</div>
+      <div id="anhTienTrinh" class="hidden" style="font-size:12.5px;color:var(--blue);font-weight:700;text-align:center;margin:6px 0;"></div>
+      <div class="row-flex" style="margin-top:6px;">
+        <button class="btn btn-outline btn-sm" style="flex:1;" ${con<=0?'disabled':''} onclick="chonAnhVao(true)">📷 Chụp ảnh</button>
+        <button class="btn btn-outline btn-sm" style="flex:1;" ${con<=0?'disabled':''} onclick="chonAnhVao(false)">🖼 Chọn từ thư viện</button>
+      </div>
+      <div style="font-size:11.5px;color:var(--muted);text-align:center;margin-top:10px;">
+        Đã có ${list.length}/${ANH_TOI_DA} ảnh${list.length ? ' · khoảng ' + dinhDangDungLuong(uocLuongDungLuong(list)) : ''}
+      </div>
+      <button class="btn btn-primary btn-block" style="margin-top:12px;" onclick="dongCuaSoAnh()">✓ Xong</button>
+    </div>`;
+}
+function dongCuaSoAnh(){
+  const ov = document.getElementById('anhOverlay');
+  if(ov) ov.remove();
+  anhCtx = null;
+  renderEntryRows();
+  if(mainTab === 'history') renderHistory();
+}
+function xemAnhLon(i){
+  const list = layDanhSachAnh();
+  const src = anhSrc(list[i]);
+  if(!src) return;
+  const ov = document.createElement('div');
+  ov.className = 'anh-view-overlay';
+  ov.onclick = ()=> ov.remove();
+  ov.innerHTML = `<img src="${src}">`;
+  document.body.appendChild(ov);
+}
+function batTienTrinh(text){
+  const el = document.getElementById('anhTienTrinh');
+  if(!el) return;
+  if(text){ el.textContent = text; el.classList.remove('hidden'); }
+  else el.classList.add('hidden');
+}
+async function xoaAnhTrongCuaSo(i){
+  if(!confirm("Xoá ảnh này?")) return;
+  const list = layDanhSachAnh();
+  const a = list[i];
+  if(!a) return;
+  if(anhCtx.loai === 'report'){
+    batTienTrinh("Đang xoá ảnh…");
+    if(a.path) await xoaAnhStorage(a.path);
+    list.splice(i, 1);
+    saveJSON(REPORT_KEY, reports);
+    flushCloudSyncNow();
+  }else{
+    list.splice(i, 1);
+  }
+  veCuaSoAnh();
+}
+// Mở hộp chọn ảnh (chụp hoặc thư viện), nén rồi thêm vào danh sách
+function chonAnhVao(dungCamera){
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = 'image/*';
+  inp.multiple = !dungCamera;
+  if(dungCamera) inp.capture = 'environment';
+  inp.onchange = async ()=>{
+    const files = Array.from(inp.files || []);
+    if(files.length === 0) return;
+    const list = layDanhSachAnh();
+    const con = ANH_TOI_DA - list.length;
+    if(con <= 0){ alert(`Mỗi dòng chỉ lưu tối đa ${ANH_TOI_DA} ảnh.`); return; }
+    const nhan = files.slice(0, con);
+    if(files.length > con) alert(`Chỉ nhận thêm ${con} ảnh nữa (tối đa ${ANH_TOI_DA} ảnh/dòng).`);
+    for(let i=0; i<nhan.length; i++){
+      try{
+        batTienTrinh(`Đang xử lý ảnh ${i+1}/${nhan.length}…`);
+        const dataUrl = await nenAnh(nhan[i]);
+        if(anhCtx.loai === 'report'){
+          batTienTrinh(`Đang tải ảnh ${i+1}/${nhan.length} lên…`);
+          const rec = reports.find(x=>x.id === anhCtx.id);
+          if(!rec) throw new Error("Không tìm thấy dòng");
+          const info = await taiAnhLen(dataUrl, rec.id, rec.date, list.length);
+          list.push(info);
+          saveJSON(REPORT_KEY, reports);
+          flushCloudSyncNow();
+        }else{
+          list.push(dataUrl);
+        }
+      }catch(e){
+        console.error(e);
+        alert("Lỗi khi thêm ảnh: " + (e.message || e));
+        break;
+      }
+    }
+    batTienTrinh('');
+    veCuaSoAnh();
+  };
+  inp.click();
+}
+
 function renderEntryRows(){
   const wrap = document.getElementById('entryTbody');
   if(!wrap) return;
@@ -1025,6 +1252,7 @@ function renderEntryRows(){
       <td><input type="text" data-src="lh" value="${escapeHtml(r.loaiHang)}" placeholder="Gõ để tìm/thêm…" oninput="updateEntryField('${r.id}','loaiHang',this.value)"></td>
       <td><input type="text" value="${escapeHtml(r.size)}" oninput="updateEntryField('${r.id}','size',this.value)"></td>
       <td><input type="text" class="amt-input" value="${r.khoiLuong?formatNumber(r.khoiLuong):''}" placeholder="0" inputmode="decimal" oninput="handleWeightInput(event,'${r.id}')" onblur="forceReformatWeight(event)"></td>
+      <td style="padding:4px 3px;">${camBtnHtml((r.anhs||[]).length, `moAnhEntry('${r.id}')`)}</td>
       <td><button class="del-btn" onclick="removeEntryRow('${r.id}')" style="font-size:14px;">🗑</button></td>
     </tr>
   `).join('');
@@ -1046,19 +1274,62 @@ function forceReformatWeight(e){
   const raw = parseWeightInput(el.value);
   el.value = raw ? formatNumber(raw) : '';
 }
-function saveReport(){
+let dangLuuReport = false;
+async function saveReport(){
+  if(dangLuuReport) return;
   const date = document.getElementById('entryDate').value || todayKey();
   const nguoiCan = currentUser ? currentUser.displayName : '';
   const valid = entryRows.filter(r=> r.khachHang && Number(r.khoiLuong)>0);
   if(valid.length===0){ alert("Chưa có dòng nào đủ thông tin (cần chọn Khách hàng và nhập Khối lượng > 0)"); return; }
   const now = Date.now();
-  valid.forEach(r=>{
-    reports.push({ id: uid(), date, khachHang:r.khachHang, daiLy:r.daiLy, loaiHang:r.loaiHang, size:r.size, khoiLuong:Number(r.khoiLuong), nguoiCan, createdAt: now });
-  });
+  const tongAnh = valid.reduce((s,r)=> s + ((r.anhs||[]).length), 0);
+  if(tongAnh > 0 && !fsStorage){
+    if(!confirm("Chưa kết nối được kho ảnh (Firebase Storage).\nBấm OK để lưu số liệu nhưng KHÔNG có ảnh, hoặc Cancel để dừng lại.")) return;
+  }
+
+  dangLuuReport = true;
+  const nutLuu = document.getElementById('btnLuuReport');
+  if(nutLuu){ nutLuu.disabled = true; }
+  const datNhan = (t)=>{ if(nutLuu) nutLuu.textContent = t; };
+
+  const moi = valid.map(r=>({
+    rec: { id: uid(), date, khachHang:r.khachHang, daiLy:r.daiLy, loaiHang:r.loaiHang, size:r.size, khoiLuong:Number(r.khoiLuong), nguoiCan, createdAt: now, anhs: [] },
+    anhTam: (r.anhs || []).slice()
+  }));
+
+  // Lưu số liệu trước — ảnh tải lên sau, để mất mạng giữa chừng vẫn không mất số liệu
+  moi.forEach(m=> reports.push(m.rec));
   saveJSON(REPORT_KEY, reports);
+
+  let loiAnh = 0;
+  if(tongAnh > 0 && fsStorage){
+    let daXong = 0;
+    for(const m of moi){
+      for(let i=0; i<m.anhTam.length; i++){
+        daXong++;
+        datNhan(`⏫ Đang tải ảnh ${daXong}/${tongAnh}…`);
+        try{
+          const info = await taiAnhLen(m.anhTam[i], m.rec.id, m.rec.date, i);
+          m.rec.anhs.push(info);
+        }catch(e){
+          console.error("Lỗi tải ảnh", e);
+          loiAnh++;
+        }
+      }
+    }
+    saveJSON(REPORT_KEY, reports);
+    flushCloudSyncNow();
+  }
+
+  dangLuuReport = false;
+  if(nutLuu){ nutLuu.disabled = false; datNhan('💾 Lưu'); }
+
   initEntryRows();
   renderEntryRows();
-  alert(`Đã lưu ${valid.length} dòng vào báo cáo ngày ${formatDateVN(date)}.`);
+  let tb = `Đã lưu ${valid.length} dòng vào báo cáo ngày ${formatDateVN(date)}.`;
+  if(tongAnh > 0) tb += `\nẢnh tải lên thành công: ${tongAnh - loiAnh}/${tongAnh}.`;
+  if(loiAnh > 0) tb += `\n${loiAnh} ảnh chưa tải được — số liệu đã lưu, anh có thể bấm nút 📷 ở tab Báo Cáo để thêm lại.`;
+  alert(tb);
   renderHistory();
 }
 
@@ -1246,8 +1517,14 @@ function renderSummary(){
     <div class="pie-legend">${legendHtml}</div>`;
 }
 let editingRowId = null;
-function deleteReportRow(id){
-  if(!confirm("Xoá dòng này? Không thể hoàn tác.")) return;
+async function deleteReportRow(id){
+  const rec = reports.find(r=>r.id===id);
+  const soAnh = (rec && rec.anhs) ? rec.anhs.length : 0;
+  const hoi = soAnh > 0
+    ? `Xoá dòng này cùng ${soAnh} ảnh kèm theo? Không thể hoàn tác.`
+    : "Xoá dòng này? Không thể hoàn tác.";
+  if(!confirm(hoi)) return;
+  if(soAnh > 0) await xoaAnhCuaDong(rec);
   reports = reports.filter(r=>r.id!==id);
   saveJSON(REPORT_KEY, reports);
   renderHistory();
@@ -1322,7 +1599,10 @@ function renderHistory(){
         ${isFirst ? `<td rowspan="${rowspan}" class="left" style="vertical-align:middle;">
           <div style="font-size:24px;font-weight:800;">${escapeHtml(g.khachHang)}${isKhHidden(g.khachHang)? ' <span style="font-size:11px;font-weight:700;color:#fff;background:var(--muted);border-radius:8px;padding:2px 7px;vertical-align:middle;">Đang ẩn</span>':''}</div>
         </td>` : ''}
-        <td class="no-export" style="white-space:nowrap;"><button class="del-btn" onclick="editReportRow('${r.id}')">✏️</button><button class="del-btn" onclick="deleteReportRow('${r.id}')">🗑</button></td>
+        <td class="no-export" style="white-space:nowrap;padding:4px;">
+          ${camBtnHtml((r.anhs||[]).length, `moAnhReport('${r.id}')`)}
+          <div><button class="del-btn" onclick="editReportRow('${r.id}')">✏️</button><button class="del-btn" onclick="deleteReportRow('${r.id}')">🗑</button></div>
+        </td>
       </tr>`;
     }).join('');
     return `<tbody class="bc-group">${trs}</tbody>`;
