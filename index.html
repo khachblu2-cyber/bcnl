@@ -143,7 +143,7 @@
     <button class="tab-btn" id="tabBtnSettings" onclick="switchMainTab('settings')">⚙️ Cài Đặt</button>
   </div>
 </div>
-<div style="text-align:center;font-size:10px;color:var(--muted);opacity:.75;padding:3px 0;">Phiên bản: V1.7.5</div>
+<div style="text-align:center;font-size:10px;color:var(--muted);opacity:.75;padding:3px 0;">Phiên bản: V1.7.6</div>
 
 <div class="wrap" style="padding-top:16px;">
   <div class="font-display" style="font-size:24px;font-weight:700;">Báo Cáo Nguyên Liệu</div>
@@ -1191,7 +1191,12 @@ async function xoaAnhTrongCuaSo(i){
   if(anhCtx.loai === 'report'){
     batTienTrinh("Đang xoá ảnh…");
     if(a.path) await xoaAnhStorage(a.path);
-    list.splice(i, 1);
+    // Mảng reports có thể đã bị thay mới trong lúc await -> tìm lại theo id rồi mới xoá
+    const recHienTai = reports.find(x=>x.id === anhCtx.id);
+    if(recHienTai && Array.isArray(recHienTai.anhs)){
+      const vt = recHienTai.anhs.findIndex(x=> x && x.path === a.path);
+      if(vt >= 0) recHienTai.anhs.splice(vt, 1);
+    }
     saveJSON(REPORT_KEY, reports);
     flushCloudSyncNow();
   }else{
@@ -1223,7 +1228,11 @@ function chonAnhVao(dungCamera){
           const rec = reports.find(x=>x.id === anhCtx.id);
           if(!rec) throw new Error("Không tìm thấy dòng");
           const info = await taiAnhLen(dataUrl, rec.id, rec.date, list.length);
-          list.push(info);
+          // Mảng reports có thể đã bị thay mới trong lúc await -> tìm lại theo id
+          const recHienTai = reports.find(x=>x.id === anhCtx.id);
+          if(!recHienTai) throw new Error("Dòng đã bị xoá trong lúc tải ảnh");
+          if(!Array.isArray(recHienTai.anhs)) recHienTai.anhs = [];
+          recHienTai.anhs.push(info);
           saveJSON(REPORT_KEY, reports);
           flushCloudSyncNow();
         }else{
@@ -1310,7 +1319,16 @@ async function saveReport(){
         datNhan(`⏫ Đang tải ảnh ${daXong}/${tongAnh}…`);
         try{
           const info = await taiAnhLen(m.anhTam[i], m.rec.id, m.rec.date, i);
-          m.rec.anhs.push(info);
+          // Bộ lắng nghe thời gian thực có thể đã thay mới mảng reports trong lúc đang tải ảnh
+          // -> phải tìm lại dòng theo id, không dùng tham chiếu cầm từ trước khi await
+          const recHienTai = reports.find(x=>x.id === m.rec.id);
+          if(recHienTai){
+            if(!Array.isArray(recHienTai.anhs)) recHienTai.anhs = [];
+            recHienTai.anhs.push(info);
+          }else{
+            console.warn("Không tìm thấy dòng sau khi tải ảnh:", m.rec.id);
+            loiAnh++;
+          }
         }catch(e){
           console.error("Lỗi tải ảnh", e);
           loiAnh++;
@@ -1329,8 +1347,8 @@ async function saveReport(){
   let tb = `Đã lưu ${valid.length} dòng vào báo cáo ngày ${formatDateVN(date)}.`;
   if(tongAnh > 0) tb += `\nẢnh tải lên thành công: ${tongAnh - loiAnh}/${tongAnh}.`;
   if(loiAnh > 0) tb += `\n${loiAnh} ảnh chưa tải được — số liệu đã lưu, anh có thể bấm nút 📷 ở tab Báo Cáo để thêm lại.`;
-  alert(tb);
-  renderHistory();
+  // Chờ trình duyệt vẽ lại nút Lưu về trạng thái thường rồi mới bật hộp thoại
+  setTimeout(()=>{ alert(tb); renderHistory(); }, 60);
 }
 
 // ===== BÁO CÁO (lọc nhanh + bảng) =====
