@@ -143,7 +143,7 @@
     <button class="tab-btn" id="tabBtnSettings" onclick="switchMainTab('settings')">⚙️ Cài Đặt</button>
   </div>
 </div>
-<div style="text-align:center;font-size:10px;color:var(--muted);opacity:.75;padding:3px 0;">Phiên bản: V1.7.6</div>
+<div style="text-align:center;font-size:10px;color:var(--muted);opacity:.75;padding:3px 0;">Phiên bản: V1.7.7</div>
 
 <div class="wrap" style="padding-top:16px;">
   <div class="font-display" style="font-size:24px;font-weight:700;">Báo Cáo Nguyên Liệu</div>
@@ -1028,7 +1028,7 @@ window.addEventListener('scroll', ()=>{
 }, true);
 window.addEventListener('resize', ()=>{ closeSearchSuggest(); });
 
-// ===================== ẢNH LÔ HÀNG (V1.7.5) =====================
+// ===================== ẢNH LÔ HÀNG (V1.7.7) =====================
 const ANH_TOI_DA = 5;        // tối đa 5 tấm / dòng cân
 const ANH_MAX_PX = 1024;     // cạnh dài nhất sau khi nén
 const ANH_CHAT_LUONG = 0.7;  // chất lượng JPEG
@@ -1075,6 +1075,26 @@ function uocLuongDungLuong(list){
 function dinhDangDungLuong(bytes){
   if(bytes < 1024*1024) return Math.round(bytes/1024) + ' KB';
   return (bytes/1024/1024).toFixed(2).replace('.', ',') + ' MB';
+}
+
+// Ghi TRỌN VẸN 1 dòng thẳng lên Firestore, KHÔNG đi qua bộ đồng bộ chung.
+// Lý do: bộ đồng bộ chung gom + hẹn 900ms, trong lúc chờ thì bản dội ngược từ
+// máy chủ thay mới cả mảng và cuốn trôi link ảnh vừa gán; sau đó nó so sánh
+// thấy "không có gì đổi" nên không ghi lại. Ghi thẳng thì bản dội về đã mang
+// sẵn link đúng. Ghi trọn cả dòng (không ghi riêng mỗi trường anhs) để tránh
+// tạo ra dòng khuyết trường nếu dòng chưa kịp lên mây.
+async function ghiDongLenMay(recId){
+  const rec = reports.find(x=>x.id === recId);
+  if(!rec) return false;
+  saveJSON(REPORT_KEY, reports);
+  if(!fsReady || !fsDb) return false;
+  try{
+    await fsDb.collection('bcnlReports2').doc(String(recId)).set(deepCopy(rec));
+    return true;
+  }catch(e){
+    console.error("Lỗi ghi dòng lên Firestore", e);
+    return false;
+  }
 }
 
 // Tải 1 ảnh dataURL lên Firebase Storage -> trả {url, path, size}
@@ -1184,28 +1204,35 @@ function batTienTrinh(text){
   else el.classList.add('hidden');
 }
 async function xoaAnhTrongCuaSo(i){
-  if(!confirm("Xoá ảnh này?")) return;
+  const ctx = anhCtx ? { loai: anhCtx.loai, id: anhCtx.id } : null;
+  if(!ctx) return;
   const list = layDanhSachAnh();
   const a = list[i];
   if(!a) return;
-  if(anhCtx.loai === 'report'){
+  if(!confirm("Xoá ảnh này?")) return;
+  if(ctx.loai === 'report'){
     batTienTrinh("Đang xoá ảnh…");
     if(a.path) await xoaAnhStorage(a.path);
-    // Mảng reports có thể đã bị thay mới trong lúc await -> tìm lại theo id rồi mới xoá
-    const recHienTai = reports.find(x=>x.id === anhCtx.id);
+    // Mảng reports có thể đã bị thay mới trong lúc chờ -> tìm lại theo id,
+    // và gỡ theo path chứ không theo chỉ số (chỉ số có thể đã lệch)
+    const recHienTai = reports.find(x=>x.id === ctx.id);
     if(recHienTai && Array.isArray(recHienTai.anhs)){
       const vt = recHienTai.anhs.findIndex(x=> x && x.path === a.path);
       if(vt >= 0) recHienTai.anhs.splice(vt, 1);
+      await ghiDongLenMay(ctx.id);
     }
-    saveJSON(REPORT_KEY, reports);
-    flushCloudSyncNow();
   }else{
-    list.splice(i, 1);
+    const r = entryRows.find(x=>x.id===ctx.id);
+    if(r && Array.isArray(r.anhs)) r.anhs.splice(i, 1);
   }
-  veCuaSoAnh();
+  batTienTrinh('');
+  if(anhCtx && anhCtx.id === ctx.id) veCuaSoAnh();
+  else { renderEntryRows(); if(mainTab === 'history') renderHistory(); }
 }
 // Mở hộp chọn ảnh (chụp hoặc thư viện), nén rồi thêm vào danh sách
 function chonAnhVao(dungCamera){
+  const ctx = anhCtx ? { loai: anhCtx.loai, id: anhCtx.id } : null; // giữ bản sao, cửa sổ đóng giữa chừng không làm văng app
+  if(!ctx) return;
   const inp = document.createElement('input');
   inp.type = 'file';
   inp.accept = 'image/*';
@@ -1214,38 +1241,74 @@ function chonAnhVao(dungCamera){
   inp.onchange = async ()=>{
     const files = Array.from(inp.files || []);
     if(files.length === 0) return;
-    const list = layDanhSachAnh();
-    const con = ANH_TOI_DA - list.length;
+
+    // Đếm lại số ảnh hiện có ngay lúc này (không dùng số đếm cũ)
+    const demHienTai = ()=>{
+      if(ctx.loai === 'entry'){
+        const r = entryRows.find(x=>x.id===ctx.id);
+        return r && Array.isArray(r.anhs) ? r.anhs.length : 0;
+      }
+      const r = reports.find(x=>x.id===ctx.id);
+      return r && Array.isArray(r.anhs) ? r.anhs.length : 0;
+    };
+    const con = ANH_TOI_DA - demHienTai();
     if(con <= 0){ alert(`Mỗi dòng chỉ lưu tối đa ${ANH_TOI_DA} ảnh.`); return; }
     const nhan = files.slice(0, con);
     if(files.length > con) alert(`Chỉ nhận thêm ${con} ảnh nữa (tối đa ${ANH_TOI_DA} ảnh/dòng).`);
-    for(let i=0; i<nhan.length; i++){
-      try{
-        batTienTrinh(`Đang xử lý ảnh ${i+1}/${nhan.length}…`);
-        const dataUrl = await nenAnh(nhan[i]);
-        if(anhCtx.loai === 'report'){
-          batTienTrinh(`Đang tải ảnh ${i+1}/${nhan.length} lên…`);
-          const rec = reports.find(x=>x.id === anhCtx.id);
-          if(!rec) throw new Error("Không tìm thấy dòng");
-          const info = await taiAnhLen(dataUrl, rec.id, rec.date, list.length);
-          // Mảng reports có thể đã bị thay mới trong lúc await -> tìm lại theo id
-          const recHienTai = reports.find(x=>x.id === anhCtx.id);
-          if(!recHienTai) throw new Error("Dòng đã bị xoá trong lúc tải ảnh");
-          if(!Array.isArray(recHienTai.anhs)) recHienTai.anhs = [];
-          recHienTai.anhs.push(info);
-          saveJSON(REPORT_KEY, reports);
-          flushCloudSyncNow();
-        }else{
-          list.push(dataUrl);
+
+    if(ctx.loai === 'entry'){
+      // Dòng đang nhập: giữ ảnh tạm trong bộ nhớ, tải lên lúc bấm Lưu
+      for(let i=0; i<nhan.length; i++){
+        try{
+          batTienTrinh(`Đang xử lý ảnh ${i+1}/${nhan.length}…`);
+          const dataUrl = await nenAnh(nhan[i]);
+          const r = entryRows.find(x=>x.id===ctx.id);
+          if(!r) throw new Error("Dòng nhập đã bị xoá");
+          if(!Array.isArray(r.anhs)) r.anhs = [];
+          if(r.anhs.length >= ANH_TOI_DA) break;
+          r.anhs.push(dataUrl);
+        }catch(e){
+          console.error(e);
+          alert("Lỗi khi thêm ảnh: " + (e.message || e));
+          break;
         }
-      }catch(e){
-        console.error(e);
-        alert("Lỗi khi thêm ảnh: " + (e.message || e));
-        break;
+      }
+    }else{
+      // Dòng đã lưu: tải HẾT ảnh lên Storage, gom đủ link rồi ghi thẳng 1 lần
+      const linkMoi = [];
+      for(let i=0; i<nhan.length; i++){
+        try{
+          batTienTrinh(`Đang xử lý ảnh ${i+1}/${nhan.length}…`);
+          const dataUrl = await nenAnh(nhan[i]);
+          const rec = reports.find(x=>x.id === ctx.id);
+          if(!rec) throw new Error("Không tìm thấy dòng");
+          batTienTrinh(`Đang tải ảnh ${i+1}/${nhan.length} lên…`);
+          // Số thứ tự tính lại theo thực tế tại thời điểm này
+          const thuTu = (Array.isArray(rec.anhs) ? rec.anhs.length : 0) + linkMoi.length;
+          linkMoi.push(await taiAnhLen(dataUrl, rec.id, rec.date, thuTu));
+        }catch(e){
+          console.error(e);
+          alert("Lỗi khi thêm ảnh: " + (e.message || e));
+          break;
+        }
+      }
+      if(linkMoi.length > 0){
+        const recHienTai = reports.find(x=>x.id === ctx.id);
+        if(recHienTai){
+          if(!Array.isArray(recHienTai.anhs)) recHienTai.anhs = [];
+          recHienTai.anhs = recHienTai.anhs.concat(linkMoi);
+          batTienTrinh("Đang lưu…");
+          const ok = await ghiDongLenMay(ctx.id);
+          if(!ok) alert("Ảnh đã tải lên nhưng chưa lưu được vào dòng. Anh kiểm tra kết nối rồi thử lại.");
+        }else{
+          alert("Dòng đã bị xoá trong lúc tải ảnh.");
+        }
       }
     }
+
     batTienTrinh('');
-    veCuaSoAnh();
+    if(anhCtx && anhCtx.id === ctx.id) veCuaSoAnh();
+    else { renderEntryRows(); if(mainTab === 'history') renderHistory(); }
   };
   inp.click();
 }
@@ -1314,29 +1377,32 @@ async function saveReport(){
   if(tongAnh > 0 && fsStorage){
     let daXong = 0;
     for(const m of moi){
+      if(m.anhTam.length === 0) continue;
+      // Tải HẾT ảnh của dòng này, gom đủ link, chưa đụng tới dữ liệu
+      const linkMoi = [];
       for(let i=0; i<m.anhTam.length; i++){
         daXong++;
         datNhan(`⏫ Đang tải ảnh ${daXong}/${tongAnh}…`);
         try{
-          const info = await taiAnhLen(m.anhTam[i], m.rec.id, m.rec.date, i);
-          // Bộ lắng nghe thời gian thực có thể đã thay mới mảng reports trong lúc đang tải ảnh
-          // -> phải tìm lại dòng theo id, không dùng tham chiếu cầm từ trước khi await
-          const recHienTai = reports.find(x=>x.id === m.rec.id);
-          if(recHienTai){
-            if(!Array.isArray(recHienTai.anhs)) recHienTai.anhs = [];
-            recHienTai.anhs.push(info);
-          }else{
-            console.warn("Không tìm thấy dòng sau khi tải ảnh:", m.rec.id);
-            loiAnh++;
-          }
+          linkMoi.push(await taiAnhLen(m.anhTam[i], m.rec.id, m.rec.date, i));
         }catch(e){
           console.error("Lỗi tải ảnh", e);
           loiAnh++;
         }
       }
+      if(linkMoi.length === 0) continue;
+      // Gán 1 lần rồi ghi thẳng trọn vẹn cả dòng lên máy chủ
+      const recHienTai = reports.find(x=>x.id === m.rec.id);
+      if(!recHienTai){
+        console.warn("Không tìm thấy dòng sau khi tải ảnh:", m.rec.id);
+        loiAnh += linkMoi.length;
+        continue;
+      }
+      if(!Array.isArray(recHienTai.anhs)) recHienTai.anhs = [];
+      recHienTai.anhs = recHienTai.anhs.concat(linkMoi);
+      const ok = await ghiDongLenMay(m.rec.id);
+      if(!ok) loiAnh += linkMoi.length;
     }
-    saveJSON(REPORT_KEY, reports);
-    flushCloudSyncNow();
   }
 
   dangLuuReport = false;
